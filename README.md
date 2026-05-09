@@ -1,6 +1,8 @@
 # whatsapp-agent-cli
 
-Run a coding CLI behind a dedicated WhatsApp number.
+**Your AI coding agent, on WhatsApp.**
+
+Send a message from your phone. Claude or Codex runs on your server, edits files, fixes bugs, writes code — and replies directly in the chat.
 
 <p align="left">
   <a href="https://pypi.org/project/whatsapp-agent-cli/"><img src="https://img.shields.io/pypi/v/whatsapp-agent-cli?color=25D366&label=pypi" alt="PyPI"></a>
@@ -9,300 +11,162 @@ Run a coding CLI behind a dedicated WhatsApp number.
   <a href="https://github.com/kalki-kgp/whatsapp-agent-cli/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT License"></a>
 </p>
 
-`whatsapp-agent` installs a WhatsApp bridge on your server, wires it to a local coding CLI (`codex` or `claude`), and keeps per-chat session state — so you can message your server like a real operator instead of SSHing in every time.
+<!-- TODO: Add demo GIF here — screen recording of WhatsApp message → agent reply -->
 
-```text
-You (WhatsApp)  ──▶  Baileys bridge  ──▶  gateway  ──▶  codex / claude
-                          ▲                  │
-                          └──── replies ◀────┘
-```
+---
 
-## Why
+## What is this?
 
-- **One number per server.** Your phone becomes the control surface. No web UIs, no port forwarding, no VPNs.
-- **Per-chat memory.** Each WhatsApp chat keeps its own working directory, model, session, daily memory files, and saved session ids — so chat A can stay on one repo while chat B works somewhere else.
-- **Real CLI access.** It's not a wrapper API — it shells out to the actual `codex` / `claude` binary on the host with full tool use, file edits, etc.
-- **Self-hosted, local-only.** Everything (bridge, gateway, state) runs on your box. No third-party message broker.
+You type a coding task on WhatsApp. Your server runs the actual `claude` or `codex` CLI — not an API wrapper, the full tool with file reads, edits, shell commands, everything. The reply comes back in the same chat.
 
-## Requirements
+No SSH. No terminal app. No web UI to maintain. Just WhatsApp, which you already have open.
 
-- Linux server with `systemd --user` (or macOS for `whatsapp-agent run` foreground mode)
-- Python 3.10+
-- Node.js 18+
-- One of `codex` or `claude`, already installed and authenticated on the server
-- A WhatsApp account or number to pair with the bridge
+Each chat keeps its own working directory, model, and session context — so you can have one chat for your backend repo and another for your side project, and they stay completely separate.
+
+---
 
 ## Install
 
-The fastest path — one command, zero clones, no system `pip`:
+One command on your Linux server:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kalki-kgp/whatsapp-agent-cli/main/scripts/bootstrap.sh | bash
 ```
 
-This works on newer Debian/Ubuntu releases where `pip install ...` is blocked by PEP 668. The bootstrap installs `uv` into your user account if needed, checks Node/npm, installs the `whatsapp-agent` CLI persistently, then runs the real installer from PyPI.
+Then follow the interactive setup — it auto-detects Claude/Codex, picks a port, and installs a systemd service. Takes about 2 minutes.
 
-If you already have `uv`, this is the same as:
+**Requirements:** Linux with `systemd --user`, Python 3.10+, Node.js 18+, and `claude` or `codex` already installed and authenticated on the server.
 
-```bash
-uv tool install --upgrade whatsapp-agent-cli
-whatsapp-agent install
-```
+---
 
-Or install the CLI persistently:
+## What you can do from WhatsApp
 
-```bash
-# uv (recommended)
-uv tool install whatsapp-agent-cli
+- `"Fix the auth bug in user.py"` — agent edits the file, replies with what changed
+- `"Add dark mode to the dashboard"` — full file edits, multi-step, all from your phone
+- `"What's the status of the API refactor?"` — agent reads code and explains
+- `"Run the tests and tell me what's failing"` — agent shells out, reports back
+- Send a **voice note** — it gets transcribed via Whisper and sent to the agent
+- Send an **image or document** — agent sees it (if the model supports vision)
 
-# pipx
-pipx install whatsapp-agent-cli
-```
+---
 
-Then run:
+## Features
 
-```bash
-whatsapp-agent install
-```
+- **Full CLI access** — shells out to the real `codex` or `claude` binary with complete tool use, not a dumbed-down API
+- **Per-chat session state** — each WhatsApp chat has its own working directory, model, session ID, and 30 saved sessions
+- **Long-term memory** — daily rollover writes a carry-forward summary so context survives across days
+- **Voice note transcription** — optional Whisper integration turns voice messages into agent prompts
+- **Bot or self-chat mode** — use a dedicated WhatsApp number for the agent, or text your own number
+- **One-command install + upgrade** — `uv tool install whatsapp-agent-cli`, upgrades handled from within WhatsApp via `/yes`
+- **100% self-hosted** — all data stays on your server, nothing goes through a third party
 
-The installer is an interactive TUI (arrow keys to pick, Enter to confirm). It will:
+---
 
-- auto-detect `claude` and `codex` on your `PATH` and pick one
-- ask whether to run in `bot` or `self-chat` mode
-- ask for your allowed WhatsApp number(s)
-- ask whether to install `faster-whisper` for WhatsApp voice-note transcription
-- pick the next free bridge port starting at `3010`
-- hide root / model / port / CLI-path behind an opt-in **Advanced** toggle
-- show a review screen, then install Python + Node deps, write `.env`, and install the user service
-- offer to pair WhatsApp immediately
+## Chat commands
 
-Default install root: `~/.agent-whatsapp`. Default service: `agent-whatsapp.service`.
+| Command | What it does |
+|---|---|
+| `/new` | Archive current session, start fresh |
+| `/compact` | Summarize and continue — saves context window |
+| `/root /path/to/repo` | Switch the working directory for this chat |
+| `/model claude-opus-4` | Change the model on the fly |
+| `/resume` | List saved sessions and restore one |
+| `/search-session <query>` | Find a past session by description |
+| `/memory` | View this chat's long-term memory files |
+| `/status` | Backend, model, root, session info |
+| `/help` | All commands |
 
-### Non-interactive install
+---
 
-```bash
-WHATSAPP_ALLOWED_USERS=919876543210 \ (Your WhatsApp number with country code)
-  whatsapp-agent install --non-interactive
-```
-
-Reads from env vars (`AGENT_BACKEND`, `AGENT_COMMAND`, `WHATSAPP_MODE`, `WHATSAPP_PORT`, `AGENT_ROOT`, `AGENT_MODEL`, `AGENT_TRANSCRIBE_AUDIO`) and falls back to auto-detection. Only `WHATSAPP_ALLOWED_USERS` is mandatory.
-
-With the bootstrap installer:
+## Quick start (non-interactive)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kalki-kgp/whatsapp-agent-cli/main/scripts/bootstrap.sh \
-  | WHATSAPP_ALLOWED_USERS=919876543210 bash -s -- install --non-interactive
+  | WHATSAPP_ALLOWED_USERS=917385166726 bash -s -- install --non-interactive
 ```
 
-### From source
+Replace `917385166726` with your WhatsApp number in international format.
 
-```bash
-git clone https://github.com/kalki-kgp/whatsapp-agent-cli.git
-cd whatsapp-agent-cli
-bash scripts/install.sh
+---
+
+## How it works
+
+Two processes run together under a single systemd user service:
+
+```
+You (WhatsApp)
+     │
+     ▼
+bridge/bridge.js   ← Node.js + Baileys, handles WhatsApp WebSocket
+     │  long-poll
+     ▼
+server/gateway.py  ← Python async, manages per-chat sessions and state
+     │  subprocess
+     ▼
+codex / claude     ← the actual CLI, running on your server
+     │
+     └──── reply ──▶ You (WhatsApp)
 ```
 
-## Pair WhatsApp
+Everything runs in `~/.agent-whatsapp/`. The bridge stores WhatsApp credentials. The gateway stores per-chat state in `state.json` and memory files under `memory/`. Nothing leaves your box.
 
-If you skipped pairing during install:
-
-```bash
-whatsapp-agent pair
-```
-
-If credentials already exist, the command asks whether to use the existing session, pair again with a fresh QR, or cancel.
-
-```bash
-whatsapp-agent pair --reuse        # verify existing credentials
-whatsapp-agent pair --reset --yes  # back up old credentials and force a fresh QR
-```
-
-A QR code prints only when a fresh pairing is needed. Scan it from WhatsApp → **Linked devices**. The session is stored under `~/.agent-whatsapp/whatsapp/session` and survives restarts.
+---
 
 ## CLI reference
 
 ```bash
-whatsapp-agent install [--reconfigure] [--non-interactive]
-                                    # interactive setup; --reconfigure re-runs
-                                    # prompts using saved .env as defaults
-whatsapp-agent pair [--reuse|--reset] [--yes]
-                                    # pair, verify, or replace WhatsApp credentials
-whatsapp-agent run                  # live terminal monitor for the gateway
-whatsapp-agent run --plain          # foreground gateway logs without the monitor
-whatsapp-agent service start        # systemd user service controls
-whatsapp-agent service stop
-whatsapp-agent service restart
-whatsapp-agent service status
-whatsapp-agent service logs         # journalctl -f
-whatsapp-agent doctor               # diagnose the install
-whatsapp-agent path                 # print the install dir
-whatsapp-agent uninstall            # stop service and remove install dir/state
+whatsapp-agent install [--reconfigure]   # interactive setup or re-configure
+whatsapp-agent pair                      # pair or re-pair WhatsApp
+whatsapp-agent run                       # live monitor (foreground)
+whatsapp-agent service start|stop|restart|status|logs
+whatsapp-agent doctor                    # diagnose the install
+whatsapp-agent uninstall                 # full teardown
 whatsapp-agent --version
 ```
 
-`--install-dir <path>` works on every subcommand if you want to manage multiple installs side-by-side.
-
-`whatsapp-agent uninstall --yes` removes the systemd user service plus the full install directory, including `.env`, `.venv`, `node_modules`, WhatsApp pairing data, logs, and state. Use it before a clean reinstall if a previous runtime directory is wedged.
-
-## Chat commands
-
-Send these as WhatsApp messages from any allowed number:
-
-| Command | What it does |
-|---|---|
-| `/status` | Backend, root, active thread, model, summary state, saved-session count |
-| `/new` (or `/clear`) | Archive the current session, start fresh |
-| `/reset` | Clear the live session immediately |
-| `/resume` | List the current session plus all saved sessions for this chat |
-| `/resume <name>` | Restore a saved session by name or id |
-| `/search-session <query>` (or `/ss <query>`) | Find and resume the most relevant saved session |
-| `/title <name>` | Name the current session; this is the session name shown by `/resume` |
-| `/root /abs/path` | Change the working directory for this chat |
-| `/model <name>` | Change the model for future turns without clearing the session |
-| `/compact` | Write a carry-forward summary and start a fresh backend session |
-| `/memory` | Show this chat's long-term memory index and session ids |
-| `/memory update` | Update memory files and compact into a fresh backend session |
-| `/yes` | Approve a pending gateway action, such as a package upgrade |
-| `/no` | Dismiss a pending gateway action |
-| `/help` | Show all chat commands and quick usage notes |
+---
 
 ## Configuration
 
-Settings live in `~/.agent-whatsapp/.env`. Edit by hand or re-run `whatsapp-agent install --reconfigure`.
+Settings live in `~/.agent-whatsapp/.env`. Re-run `whatsapp-agent install --reconfigure` to change them interactively.
 
 | Var | Purpose |
 |---|---|
 | `AGENT_BACKEND` | `codex` or `claude` |
-| `AGENT_COMMAND` | Path or command name for the selected CLI |
+| `AGENT_COMMAND` | Path to the CLI binary |
 | `AGENT_MODEL` | Default model (blank = CLI default) |
 | `AGENT_ROOT` | Default working directory for new chats |
-| `WHATSAPP_MODE` | `bot` (separate WhatsApp account) or `self-chat` (your own number) |
-| `WHATSAPP_ALLOWED_USERS` | Comma-separated phone numbers / LIDs allowed to message the bridge |
-| `WHATSAPP_PORT` | Local bridge HTTP port (default `3010`) |
+| `WHATSAPP_MODE` | `bot` (dedicated number) or `self-chat` (your own number) |
+| `WHATSAPP_ALLOWED_USERS` | Comma-separated phone numbers allowed to message the agent |
+| `WHATSAPP_PORT` | Local bridge port (default `3010`) |
+| `AGENT_MEMORY_ENABLED` | Set `0` to disable long-term memory |
+| `AGENT_MEMORY_ROLLOVER_TIME` | Daily time (`HH:MM`) to update memory and roll sessions |
+| `AGENT_TRANSCRIBE_AUDIO` | Set `1` to enable Whisper voice transcription |
+| `AGENT_WHISPER_MODEL` | Whisper model size (`base`, `small`, `medium`) |
+| `AGENT_UPGRADE_CHECK` | Set `0` to disable PyPI upgrade notices |
 | `CW_LOG_LEVEL` | Python log level (default `INFO`) |
-| `CW_SEND_RETRY_SECONDS` | How long gateway replies retry while WhatsApp reconnects, default `60` |
-| `CW_SEND_RETRY_INTERVAL` | Seconds between send retries, default `2` |
-| `AGENT_MEMORY_ENABLED` | Set to `0` to disable long-term memory and daily rollovers |
-| `AGENT_MEMORY_DIR` | Memory root; each chat gets a folder containing `MEMORY.md` |
-| `AGENT_MEMORY_ROLLOVER_TIME` | Daily local time, `HH:MM`, to update memory and roll sessions forward |
-| `AGENT_MEMORY_FILES` | Comma-separated core memory files; default includes `user.md`, `career.md`, `projects.md`, `preferences.md`, `open-loops.md` |
-| `AGENT_TRANSCRIBE_AUDIO` | Set to `1` to transcribe WhatsApp audio/PTT messages before prompting the agent |
-| `AGENT_WHISPER_MODEL` | faster-whisper model name, default `base` |
-| `AGENT_WHISPER_DEVICE` | faster-whisper device, default `cpu` |
-| `AGENT_WHISPER_COMPUTE_TYPE` | faster-whisper compute type, default `int8` |
-| `AGENT_WHISPER_LANGUAGE` | Optional language code; blank lets Whisper auto-detect |
-| `AGENT_WHISPER_BEAM_SIZE` | Beam size for transcription, default `5` |
-| `AGENT_UPGRADE_CHECK` | Set to `0` to disable PyPI upgrade notices |
-| `AGENT_UPGRADE_CHECK_RETRY_INTERVAL` | Seconds between retry checks while no newer version is found, default `60` |
-| `AGENT_PACKAGE_VERSION` | Installed package version used for upgrade notices |
-| `SERVICE_NAME` | systemd user service name used by approved upgrades |
 
-For `WHATSAPP_ALLOWED_USERS`, full international format is the safest:
-
-```env
-WHATSAPP_ALLOWED_USERS=917385166726, 14155551212
-```
-
-The bridge also tolerates suffix-only input and resolves LID↔phone via `bridge/allowlist.js`, but country-code format is the cleanest.
-
-When the gateway sees a newer `whatsapp-agent-cli` release on PyPI, it proactively sends an upgrade approval prompt to known chats and can also append it to replies. Reply `/yes` to let the agent upgrade the persistent `uv tool`, sync the runtime, and restart the systemd user service. Reply `/no` to dismiss that version.
-
-## Voice Notes
-
-If you enable voice transcription during install, the runtime venv installs `faster-whisper`. Incoming WhatsApp voice notes and audio messages are downloaded by the bridge, transcribed locally, and the transcript is inserted into the agent prompt before the backend runs. Re-run `whatsapp-agent install --reconfigure` to turn it on or off.
-
-## Long-Term Memory
-
-Memory is enabled by default. At `AGENT_MEMORY_ROLLOVER_TIME` each day, the gateway finds active chats whose current session started before that time, asks the live agent session to update long-term memory files and write a carry-forward summary, then starts the next message in a fresh backend session with that summary preloaded.
-
-Each chat gets its own folder under `AGENT_MEMORY_DIR`:
-
-```text
-memory/<chat-id-hash>/
-  MEMORY.md
-  user.md
-  career.md
-  projects.md
-  preferences.md
-  open-loops.md
-  sessions/
-```
-
-`MEMORY.md` is the index. Topic files hold the details, and `sessions/` stores daily rollover records with the compacted session id. Send `/memory` to see the paths and active/previous session ids, or `/memory update` to force the memory update and summary handoff immediately.
+---
 
 ## Troubleshooting
 
-Run a self-diagnostic:
-
 ```bash
-whatsapp-agent doctor
+whatsapp-agent doctor   # checks Python, Node, venv, .env, bridge deps
+whatsapp-agent service logs   # live journalctl output
 ```
 
-It checks Python / Node / uv versions, install dir population, `.env` validity, CLI binary existence, the runtime venv, and bridge `node_modules` — and tells you exactly what's broken.
+Common issues:
+- **QR not scanning** — run `whatsapp-agent pair --reset --yes` to force a fresh QR
+- **Messages not arriving** — check `WHATSAPP_ALLOWED_USERS` includes your number with country code
+- **Agent not responding** — run `whatsapp-agent doctor` and check service logs
 
-For deeper digging, tail the live logs:
-
-```bash
-whatsapp-agent service logs       # systemd
-# or, in foreground / on macOS
-whatsapp-agent run
-```
-
-## Architecture
-
-Two processes, one wrapper CLI on top.
-
-```text
-┌────────────────────────────────────────────────────────────────┐
-│  ~/.agent-whatsapp/                                            │
-│                                                                │
-│   bridge/bridge.js  (Node + Baileys)                           │
-│     ├─ pairs with WhatsApp                                     │
-│     ├─ exposes 127.0.0.1:WHATSAPP_PORT                         │
-│     └─ stores creds in whatsapp/session/                       │
-│                                                                │
-│   server/gateway.py  (Python + aiohttp)                        │
-│     ├─ polls bridge /messages                                  │
-│     ├─ per-chat asyncio.Lock                                   │
-│     ├─ persists state.json                                     │
-│     └─ shells out to codex / claude with --resume              │
-│                                                                │
-│   .venv/             (python deps for the gateway)             │
-│   bridge/node_modules/                                         │
-│   memory/            (per-chat MEMORY.md + topic files)        │
-│   .env               (config, mode 600)                        │
-│   state.json         (per-chat session metadata)               │
-└────────────────────────────────────────────────────────────────┘
-```
-
-`whatsapp-agent install` populates this layout from a wheel-bundled copy of `bridge/`, `server/`, `scripts/`, and `systemd/`, then runs `npm install` and `uv pip install`. Subsequent `whatsapp-agent install --reconfigure` rewrites only `.env`, leaving the venv / node_modules / WhatsApp session intact.
-
-Per-chat session state stores: `thread_id`, `root`, `model`, `summary`, memory rollover metadata, and up to 30 `saved_sessions`.
-
-## Repository layout
-
-| Path | What it is |
-|---|---|
-| `src/whatsapp_agent/cli.py` | The `whatsapp-agent` Python CLI (entry point) |
-| `bridge/` | Node WhatsApp bridge (Baileys) |
-| `server/gateway.py` | Python async gateway + per-chat session state |
-| `scripts/install.sh` | The TUI installer (also runnable standalone) |
-| `scripts/pair.sh` | Pairing helper |
-| `scripts/start.sh`, `stop.sh` | Service convenience wrappers |
-| `systemd/agent-whatsapp.service` | User-mode systemd unit template |
-| `pyproject.toml` | Hatchling build, ships the runtime inside the wheel |
+---
 
 ## Privacy
 
-- All data stays on your host. WhatsApp credentials, chat sessions, and CLI output never leave the box.
-- The bridge speaks to WhatsApp's servers only — same as the official WhatsApp Web client.
-- `.env` is mode `600` and intentionally not committed.
+All data stays on your host. WhatsApp credentials, chat sessions, and CLI output never leave the box. The bridge speaks to WhatsApp's servers only — same as the official WhatsApp Web client. `.env` is mode `600`.
 
-## Notes
-
-- Wiping `~/.agent-whatsapp` also wipes the WhatsApp session — you'll need to `whatsapp-agent pair` again.
-- This project is designed as an isolated WhatsApp control layer for coding CLIs. It does not need to attach itself to your existing Telegram setup or other local agent workflows.
-- macOS hosts work for `whatsapp-agent install` and `whatsapp-agent run`; the `service` subcommands need Linux + `systemd --user`.
+---
 
 ## License
 
