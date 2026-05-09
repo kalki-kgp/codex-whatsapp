@@ -134,6 +134,18 @@ const logger = pino({ level: 'warn' });
 const messageQueue = [];
 const MAX_QUEUE_SIZE = 100;
 
+// Long-poll waiters: gateway holds a /messages request open until either a
+// message arrives or LONG_POLL_TIMEOUT_MS elapses. Without this, the gateway's
+// poll loop hammers /messages in a tight loop and pegs both processes.
+const messageWaiters = [];
+const LONG_POLL_TIMEOUT_MS = 25000;
+
+function notifyMessageWaiters() {
+  if (messageWaiters.length === 0 || messageQueue.length === 0) return;
+  const waiters = messageWaiters.splice(0, messageWaiters.length);
+  for (const wake of waiters) wake();
+}
+
 // Track recently sent message IDs to prevent echo-back loops with media
 const recentlySentIds = new Set();
 const MAX_RECENT_IDS = 50;
@@ -366,6 +378,7 @@ async function startSocket() {
       if (messageQueue.length > MAX_QUEUE_SIZE) {
         messageQueue.shift();
       }
+      notifyMessageWaiters();
     }
   });
 }
@@ -374,10 +387,34 @@ async function startSocket() {
 const app = express();
 app.use(express.json());
 
-// Poll for new messages (long-poll style)
+// Long-poll for new messages: returns immediately if any are queued, otherwise
+// holds the request open until a message arrives or the timeout elapses.
 app.get('/messages', (req, res) => {
-  const msgs = messageQueue.splice(0, messageQueue.length);
-  res.json(msgs);
+  if (messageQueue.length > 0) {
+    return res.json(messageQueue.splice(0, messageQueue.length));
+  }
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    const idx = messageWaiters.indexOf(wake);
+    if (idx !== -1) messageWaiters.splice(idx, 1);
+    res.json(messageQueue.splice(0, messageQueue.length));
+  };
+  const wake = finish;
+  const timer = setTimeout(finish, LONG_POLL_TIMEOUT_MS);
+
+  messageWaiters.push(wake);
+
+  req.on('close', () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    const idx = messageWaiters.indexOf(wake);
+    if (idx !== -1) messageWaiters.splice(idx, 1);
+  });
 });
 
 // Send a message

@@ -927,10 +927,14 @@ class WhatsAppAgentGateway:
         if not self.config.upgrade_check or not self.config.package_version:
             return
         now = time.monotonic()
+        # When an upgrade is pending we keep checking on the shorter retry
+        # cadence so the notice clears quickly once the user upgrades. When
+        # versions match (the steady state), use the long interval so we don't
+        # spam PyPI or the logs every minute.
         interval = (
-            self.config.upgrade_check_interval
+            self.config.upgrade_check_retry_interval
             if is_newer_version(self.latest_package_version, self.config.package_version)
-            else self.config.upgrade_check_retry_interval
+            else self.config.upgrade_check_interval
         )
         if not force and now - self.last_upgrade_check < interval:
             return
@@ -975,9 +979,9 @@ class WhatsAppAgentGateway:
                 LOG.exception("Upgrade notice loop failed")
 
             delay = (
-                self.config.upgrade_check_interval
+                self.config.upgrade_check_retry_interval
                 if is_newer_version(self.latest_package_version, self.config.package_version)
-                else self.config.upgrade_check_retry_interval
+                else self.config.upgrade_check_interval
             )
             try:
                 await asyncio.wait_for(self.stop_event.wait(), timeout=max(5.0, delay))
