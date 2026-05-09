@@ -11,7 +11,13 @@ Send a message from your phone. Claude or Codex runs on your server, edits files
   <a href="https://github.com/kalki-kgp/whatsapp-agent-cli/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT License"></a>
 </p>
 
-<!-- TODO: Add demo GIF here — screen recording of WhatsApp message → agent reply -->
+---
+
+## Demo
+
+> **📹 GIF coming soon** — screen recording of: typing a task in WhatsApp → agent running on server → reply arriving with the fix.
+>
+> To record your own: open WhatsApp on your phone, send a coding task, and capture the reply. Tools: [LICEcap](https://www.cockos.com/licecap/) (Windows/Mac) or `peek` (Linux) for GIF, or just upload an MP4 and GitHub will inline it.
 
 ---
 
