@@ -1,6 +1,11 @@
 """whatsapp-agent-cli — run a coding CLI behind a WhatsApp number."""
 
-__version__ = "0.1.14"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("whatsapp-agent-cli")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 from .cli import main
 
