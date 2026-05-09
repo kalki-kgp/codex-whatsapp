@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-agent-docs",
+  "private": true,
+  "description": "Landing page + /api/chat (OpenAI-compatible Nebius) for whatsapp-agent-cli",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.73.0"
+  }
+}

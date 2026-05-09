@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>whatsapp-agent-cli — AI agent on WhatsApp</title>
+  <meta name="description" content="Self-host Claude or Codex behind WhatsApp. Your AI agent for coding, research, drafts, and more — running on your server.">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #05100A;
+      --bg1:      #091A0F;
+      --bg2:      #0C2016;
+      --green:    #25D366;
+      --green2:   #1aad54;
+      --green3:   #128C7E;
+      --green-dim: rgba(37,211,102,0.07);
+      --gb:       rgba(37,211,102,0.18);
+      --text:     #D6EEE0;
+      --muted:    #4E7A5F;
+      --mono:     'JetBrains Mono', monospace;
+      --display:  'Syne', sans-serif;
+      --body:     'DM Sans', sans-serif;
+      --r:        12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--body);
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(37,211,102,0.06) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(18,140,126,0.05) 0%, transparent 50%),
+        radial-gradient(rgba(37,211,102,0.09) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 28px 28px;
+      background-attachment: fixed;
+    }
+
+    /* ─── NAV ─────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 40px; height: 60px;
+      background: rgba(5,16,10,0.7);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--gb);
+    }
+    .nav-logo {
+      font-family: var(--mono); font-weight: 700; font-size: 14px;
+      color: var(--green); letter-spacing: -0.01em; text-decoration: none;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .nav-logo::before {
+      content: '▶'; font-size: 10px;
+      animation: blink 1.2s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .nav-links { display: flex; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      text-decoration: none; letter-spacing: 0.02em;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--green); color: #05100A;
+      font-family: var(--mono); font-size: 12px; font-weight: 700;
+      padding: 7px 16px; border-radius: 6px; text-decoration: none;
+      letter-spacing: 0.02em; transition: background .2s;
+    }
+    .nav-cta:hover { background: var(--green2); }
+
+    /* ─── HERO ────────────────────────────────── */
+    #hero {
+      min-height: 100vh; display: flex; align-items: center;
+      padding: 80px 40px 60px;
+      max-width: 1200px; margin: 0 auto;
+      gap: 60px;
+    }
+    .hero-left { flex: 1; }
+    .hero-right { flex: 0 0 396px; display: flex; justify-content: center; align-items: center; }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+      color: var(--green); letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 5px 12px; border: 1px solid var(--gb);
+      border-radius: 100px; margin-bottom: 28px;
+      background: var(--green-dim);
+    }
+    .eyebrow-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100%{opacity:1; transform:scale(1)}
+      50%{opacity:0.4; transform:scale(0.7)}
+    }
+
+    h1 {
+      font-family: var(--mono); font-weight: 700;
+      font-size: clamp(36px, 4.2vw, 60px);
+      line-height: 1.2; letter-spacing: -0.03em;
+      color: #ffffff; margin-bottom: 20px;
+    }
+    h1 span { color: var(--green); }
+
+    .subline {
+      font-size: 18px; font-weight: 400; color: var(--muted);
+      line-height: 1.6; max-width: 480px; margin-bottom: 36px;
+    }
+
+    .install-box {
+      display: flex; align-items: center;
+      background: var(--bg1); border: 1px solid var(--gb);
+      border-radius: var(--r); overflow: hidden; margin-bottom: 24px;
+      max-width: 560px;
+    }
+    .install-prefix {
+      font-family: var(--mono); font-size: 12px;
+      color: var(--green); padding: 14px 12px 14px 16px;
+      user-select: none; flex-shrink: 0;
+    }
+    .install-cmd {
+      font-family: var(--mono); font-size: 12px;
+      color: var(--text); flex: 1; padding: 14px 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .copy-btn {
+      font-family: var(--mono); font-size: 11px; font-weight: 700;
+      color: var(--bg); background: var(--green); border: none;
+      padding: 14px 18px; cursor: pointer; letter-spacing: 0.05em;
+      flex-shrink: 0; transition: background .15s;
+    }
+    .copy-btn:hover { background: var(--green2); }
+    .copy-btn.copied { background: var(--green3); }
+
+    .hero-badges { display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      padding: 6px 12px; border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 6px; text-decoration: none;
+      transition: border-color .2s, color .2s;
+    }
+    .hero-badge:hover { border-color: var(--gb); color: var(--text); }
+
+    /* ─── PHONE MOCKUP (iPhone-style chassis) ─── */
+    .phone-wrap {
+      position: relative;
+      filter: drop-shadow(0 44px 72px rgba(0,0,0,0.55))
+        drop-shadow(0 12px 36px rgba(37,211,102,0.14));
+    }
+    .phone-device {
+      width: min(322px, 88vw);
+      aspect-ratio: 393 / 852;
+      max-height: min(628px, 74vh);
+      margin: 0 auto;
+      position: relative;
+      border-radius: clamp(46px, 13vw, 56px);
+      padding: 6px;
+      background:
+        linear-gradient(155deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0) 38%),
+        linear-gradient(148deg, #636366 0%, #48484a 14%, #3a3a3c 35%, #2c2c2e 58%, #1c1c1e 82%, #0e0e0f 100%);
+      box-shadow:
+        0 48px 96px -28px rgba(0,0,0,0.72),
+        0 24px 48px -16px rgba(37,211,102,0.22),
+        inset 0 0.5px 0 rgba(255,255,255,0.22),
+        inset 0 -2px 6px rgba(0,0,0,0.5);
+    }
+    .phone-antenna-line {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      width: 52%; height: 5px; border-radius: 0 0 6px 6px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent);
+      top: 8px; z-index: 5; pointer-events: none; opacity: 0.45;
+    }
+    .phone-screen-rim {
+      height: 100%;
+      border-radius: clamp(38px, 10.5vw, 46px);
+      background: #030303;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow:
+        inset 0 0 0 0.5px rgba(255,255,255,0.09),
+        inset 0 0.5px 0 rgba(255,255,255,0.05),
+        inset 0 -40px 80px rgba(0,0,0,0.65);
+    }
+    .phone-dynamic-island {
+      position: absolute;
+      top: 11px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 82px;
+      height: 27px;
+      background: linear-gradient(165deg, #121214 0%, #060607 55%, #030304 100%);
+      border-radius: 99px;
+      z-index: 30;
+      box-shadow:
+        0 0 0 0.5px rgba(255,255,255,0.16),
+        0 2px 10px rgba(0,0,0,0.65),
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        inset 0 -2px 5px rgba(0,0,0,0.9);
+    }
+    .phone-dynamic-island::after {
+      content: '';
+      position: absolute;
+      right: 14px; top: 50%; transform: translateY(-50%);
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #2a3d52 0%, #0d1520 65%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+      opacity: 0.75;
+    }
+    .phone-status-bar {
+      flex-shrink: 0;
+      height: 50px;
+      padding: 14px 22px 2px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', var(--body), sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: rgba(255,255,255,0.96);
+      position: relative;
+      z-index: 15;
+      background: linear-gradient(180deg, #4a4e52 0%, #35393d 38%, #2b2f33 100%);
+      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+    }
+    .phone-status-time { padding-left: 2px; }
+    .phone-status-icons {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding-top: 1px;
+    }
+    .phone-status-icons svg { display: block; opacity: 0.92; }
+
+    .phone-header {
+      flex-shrink: 0;
+      background: linear-gradient(180deg, #086056 0%, #075E54 55%, #064942 100%);
+      padding: 8px 14px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 0.5px solid rgba(0,0,0,0.14);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.06);
+    }
+    .phone-back {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0);
+      color: rgba(255,255,255,0.85);
+      cursor: default;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin-right: -2px;
+    }
+    .phone-back svg { width: 22px; height: 22px; }
+    .phone-header-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .phone-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(145deg, var(--green) 0%, var(--green3) 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+    .phone-header-info { min-width: 0; }
+    .phone-header-info h4 {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--body), sans-serif;
+      font-size: 14px; font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .phone-header-info p {
+      font-size: 11px; color: rgba(255,255,255,0.52);
+      margin-top: 2px;
+      letter-spacing: 0.01em;
+    }
+    .phone-header-actions {
+      flex-shrink: 0;
+      display: flex;
+      gap: 14px;
+      opacity: 0.88;
+    }
+    .phone-header-actions svg { display: block; }
+
+    .phone-chat-stack {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .phone-demo-hint {
+      flex-shrink: 0;
+      margin: 0;
+      padding: 8px 12px 7px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: center;
+      color: rgba(158, 206, 176, 0.78);
+      line-height: 1.45;
+      background: linear-gradient(180deg, rgba(37,211,102,0.07) 0%, rgba(5,9,8,0.35) 100%);
+      border-bottom: 0.5px solid rgba(37,211,102,0.1);
+    }
+    .phone-demo-hint strong {
+      color: var(--green);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .phone-body {
+      flex: 1;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background: #050908;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2325D366' fill-opacity='0.035'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      padding: 11px 10px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      scrollbar-width: none;
+    }
+    .phone-body::-webkit-scrollbar { width: 0; height: 0; }
+
+    .phone-composer {
+      flex-shrink: 0;
+      padding: 0 8px 8px;
+      background: linear-gradient(180deg, #0d1611 0%, #0a1210 100%);
+      border-top: 0.5px solid rgba(255,255,255,0.05);
+    }
+    .phone-composer-inner {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .phone-composer-field {
+      flex: 1;
+      min-height: 38px;
+      padding: 9px 13px;
+      border-radius: 20px;
+      background: #2d3b34;
+      border: 0.5px solid rgba(255,255,255,0.06);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--body), sans-serif;
+      font-size: 12.5px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.92);
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      word-break: break-word;
+    }
+    .phone-composer-field.is-placeholder {
+      color: rgba(255,255,255,0.42);
+      font-style: italic;
+    }
+    .phone-composer-field.is-hidden {
+      display: none !important;
+    }
+    textarea.phone-composer-field.phone-composer-input {
+      width: 100%;
+      min-height: 38px;
+      max-height: 120px;
+      line-height: 1.4;
+      resize: none;
+      overflow-y: auto;
+      cursor: text;
+      font: inherit;
+      border: none;
+      outline: none;
+      background: #2d3b34;
+      padding: 9px 13px;
+      margin: 0;
+      box-sizing: border-box;
+      display: block;
+      align-items: unset;
+    }
+    .phone-send-btn {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, var(--green) 0%, #1aad54 100%);
+      color: #022609;
+      box-shadow: 0 2px 8px rgba(37,211,102,0.35), inset 0 1px 0 rgba(255,255,255,0.35);
+      transition: transform 0.12s ease, filter 0.12s ease, opacity 0.2s;
+    }
+    .phone-send-btn:hover:not(:disabled) {
+      filter: brightness(1.06);
+      transform: scale(1.04);
+    }
+    .phone-send-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    .phone-send-btn:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+      transform: none;
+      filter: grayscale(0.2);
+    }
+    .phone-send-btn svg { width: 17px; height: 17px; margin-left: 2px; }
+
+    .phone-home-row {
+      flex-shrink: 0;
+      padding: 6px 0 10px;
+      display: flex;
+      justify-content: center;
+      background: linear-gradient(to top, #030303 40%, transparent);
+    }
+    .phone-home-indicator {
+      width: 112px;
+      height: 4px;
+      border-radius: 99px;
+      background: rgba(255,255,255,0.38);
+      box-shadow: 0 0 12px rgba(255,255,255,0.06);
+    }
+
+    .chat-msg { display: flex; animation: fadeUp 0.35s ease both; }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .chat-msg.user { justify-content: flex-end; }
+    .chat-msg.agent { justify-content: flex-start; }
+    .bubble {
+      max-width: 82%; padding: 8px 12px;
+      border-radius: 17px; font-size: 12.5px; line-height: 1.45;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--body), sans-serif;
+      letter-spacing: -0.01em;
+    }
+    .bubble.user-bubble {
+      background: #25D366; color: #022609;
+      border-bottom-right-radius: 4px; font-weight: 500;
+    }
+    .bubble.agent-bubble {
+      background: rgba(255,255,255,0.07); color: var(--text);
+      border-bottom-left-radius: 4px; border: 1px solid rgba(255,255,255,0.07);
+    }
+    .bubble-tick { font-size: 10px; opacity: 0.6; float: right; margin-left: 8px; margin-top: 2px; }
+
+    .typing-indicator {
+      display: none; align-items: center; gap: 4px;
+      padding: 10px 14px; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px; border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+    .typing-indicator.visible { display: flex; }
+    .typing-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted); animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes typing-bounce {
+      0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)}
+    }
+
+    /* ─── SECTION SHARED ──────────────────────── */
+    section { padding: 100px 40px; max-width: 1200px; margin: 0 auto; }
+    .section-label {
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+      color: var(--green); letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    h2 {
+      font-family: var(--mono); font-weight: 700;
+      font-size: clamp(26px, 3.2vw, 42px);
+      line-height: 1.2; letter-spacing: -0.03em;
+      color: #fff; margin-bottom: 14px;
+    }
+    .section-sub {
+      font-size: 17px; color: var(--muted); line-height: 1.6;
+      max-width: 540px; margin-bottom: 56px;
+    }
+
+    /* ─── WHAT YOU CAN DO ─────────────────────── */
+    #what { padding-top: 0; }
+    .cards-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    .card {
+      padding: 32px 28px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--gb);
+      border-radius: var(--r);
+      transition: border-color .25s, background .25s, transform .25s;
+      position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--green), transparent);
+      opacity: 0; transition: opacity .3s;
+    }
+    .card:hover { border-color: rgba(37,211,102,0.4); background: var(--green-dim); transform: translateY(-2px); }
+    .card:hover::before { opacity: 1; }
+    .card-icon { font-size: 28px; margin-bottom: 18px; display: block; }
+    .card h3 {
+      font-family: var(--mono); font-weight: 700; font-size: 18px;
+      line-height: 1.25;
+      color: #fff; margin-bottom: 10px; letter-spacing: -0.02em;
+    }
+    .card p { font-size: 14px; color: var(--muted); line-height: 1.65; }
+
+    /* ─── HOW IT WORKS ────────────────────────── */
+    #how { padding-top: 0; }
+    .diagram-wrap {
+      background: var(--bg1); border: 1px solid var(--gb);
+      border-radius: 16px; padding: 48px 40px; overflow-x: auto;
+    }
+    .diagram-svg { width: 100%; min-width: 700px; }
+
+    /* ─── FEATURE GRID ────────────────────────── */
+    #features { padding-top: 0; }
+    .features-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+      border: 1px solid var(--gb); border-radius: var(--r); overflow: hidden;
+    }
+    .feat-item {
+      display: flex; align-items: flex-start; gap: 16px;
+      padding: 28px 24px; background: var(--bg1);
+      transition: background .2s;
+    }
+    .feat-item:hover { background: var(--green-dim); }
+    .feat-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0; margin-top: 7px;
+      box-shadow: 0 0 8px rgba(37,211,102,0.5);
+    }
+    .feat-item h4 {
+      font-family: var(--mono); font-weight: 600; font-size: 15px;
+      line-height: 1.3;
+      color: #fff; margin-bottom: 5px; letter-spacing: -0.02em;
+    }
+    .feat-item p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ─── COMMANDS ────────────────────────────── */
+    #commands { padding-top: 0; }
+    .terminal {
+      background: #040C07; border: 1px solid var(--gb);
+      border-radius: var(--r); overflow: hidden;
+    }
+    .terminal-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--gb);
+    }
+    .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .t-dot.r { background: #FF5F57; }
+    .t-dot.y { background: #FFBD2E; }
+    .t-dot.g { background: #28CA41; }
+    .terminal-title {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      margin-left: 8px;
+    }
+    .cmd-table { width: 100%; border-collapse: collapse; }
+    .cmd-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background .15s; }
+    .cmd-row:last-child { border-bottom: none; }
+    .cmd-row:hover { background: var(--green-dim); }
+    .cmd-cell {
+      padding: 14px 20px; font-family: var(--mono);
+      font-size: 13px; vertical-align: top;
+    }
+    .cmd-name { color: var(--green); white-space: nowrap; width: 220px; font-weight: 500; }
+    .cmd-desc { color: var(--muted); font-size: 12px; }
+    .cmd-prompt { color: var(--muted); padding-right: 0; opacity: 0.4; width: 24px; }
+
+    /* ─── INSTALL ─────────────────────────────── */
+    #install { padding-top: 0; }
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: grid; grid-template-columns: 48px 1fr;
+      gap: 0 28px; position: relative;
+    }
+    .step:not(:last-child) .step-line {
+      position: absolute; left: 23px; top: 48px; bottom: 0;
+      width: 1px; background: linear-gradient(to bottom, var(--gb), transparent);
+    }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 1px solid var(--gb); display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 14px; font-weight: 700;
+      color: var(--green); background: var(--bg1); flex-shrink: 0; z-index: 1;
+    }
+    .step-content { padding-bottom: 40px; }
+    .step-content h3 {
+      font-family: var(--mono); font-size: 18px; font-weight: 700;
+      line-height: 1.25;
+      color: #fff; margin-bottom: 10px; letter-spacing: -0.02em;
+      padding-top: 12px;
+    }
+    .step-content p { font-size: 14px; color: var(--muted); margin-bottom: 14px; line-height: 1.65; }
+    .code-block {
+      background: #040C07; border: 1px solid var(--gb);
+      border-radius: 8px; padding: 14px 18px;
+      font-family: var(--mono); font-size: 12px; color: var(--text);
+      overflow-x: auto; white-space: pre; line-height: 1.7;
+      position: relative;
+    }
+    .code-block .comment { color: var(--muted); font-style: italic; }
+    .code-block .cmd-green { color: var(--green); }
+
+    /* ─── FOOTER ──────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--gb);
+      padding: 40px; max-width: 1200px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 20px;
+    }
+    .footer-left { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .footer-left a { color: var(--green); text-decoration: none; }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a {
+      font-family: var(--mono); font-size: 12px; color: var(--muted);
+      text-decoration: none; transition: color .2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .built-with {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      opacity: 0.5;
+    }
+
+    /* ─── SVG ANIMATION ───────────────────────── */
+    .flow-line { animation: dashflow 2s linear infinite; }
+    .flow-line-r { animation: dashflow-r 2s linear infinite; }
+    @keyframes dashflow {
+      from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; }
+    }
+    @keyframes dashflow-r {
+      from { stroke-dashoffset: 0; } to { stroke-dashoffset: 24; }
+    }
+
+    /* ─── RESPONSIVE ──────────────────────────── */
+    @media (max-width: 900px) {
+      #hero { flex-direction: column; padding-top: 100px; text-align: center; }
+      .hero-right { display: none; }
+      .subline { max-width: 100%; }
+      .cards-3 { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      section { padding: 60px 20px; }
+      footer { flex-direction: column; padding: 30px 20px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── NAV ─────────────────────────────────────── -->
+<nav>
+  <a href="#hero" class="nav-logo">whatsapp-agent-cli</a>
+  <ul class="nav-links">
+    <li><a href="#what">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#commands">Commands</a></li>
+    <li><a href="#install">Install</a></li>
+  </ul>
+  <a href="https://github.com/kalki-kgp/whatsapp-agent-cli" class="nav-cta" target="_blank">GitHub →</a>
+</nav>
+
+<!-- ─── HERO ─────────────────────────────────────── -->
+<section id="hero" style="padding-top:80px;">
+  <div class="hero-left">
+    <div class="eyebrow">
+      <span class="eyebrow-dot"></span>
+      Open Source · Self-Hosted · v0.1.16
+    </div>
+    <h1>Your AI agent.<br><span>On WhatsApp.</span></h1>
+    <p class="subline">Self-host Claude or Codex behind a WhatsApp number. One inbox for <strong style="font-weight:600;color:var(--text)">everything</strong> your CLI agent can do — coding, research, drafts, planning, ops — text your machine like an operator, without opening SSH.</p>
+
+    <div class="install-box">
+      <span class="install-prefix">$</span>
+      <span class="install-cmd" id="installCmd">curl -fsSL https://raw.githubusercontent.com/kalki-kgp/whatsapp-agent-cli/main/scripts/bootstrap.sh | bash</span>
+      <button class="copy-btn" id="copyBtn" onclick="copyInstall()">Copy</button>
+    </div>
+
+    <div class="hero-badges">
+      <a href="https://pypi.org/project/whatsapp-agent-cli/" class="hero-badge" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--green)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        PyPI · whatsapp-agent-cli
+      </a>
+      <a href="https://github.com/kalki-kgp/whatsapp-agent-cli" class="hero-badge" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+      <span class="hero-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        MIT License
+      </span>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="phone-wrap">
+      <div class="phone-device">
+        <div class="phone-antenna-line"></div>
+        <div class="phone-screen-rim">
+          <div class="phone-dynamic-island"></div>
+          <header class="phone-status-bar">
+            <span class="phone-status-time">9:41</span>
+            <div class="phone-status-icons">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="1" y="7" width="3" height="4" rx="1"/><rect x="5.5" y="5" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="8" rx="1"/><rect x="14.5" y="1" width="3" height="10" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" aria-hidden="true"><path d="M7.5 10a1 1 0 1 0 0-.01v.01Z" fill="currentColor"/><path d="M4 7a5 5 0 0 1 7 0M2 5a8 8 0 0 1 11 0M.5 3a11 11 0 0 1 14 0" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+              <svg width="24" height="12" viewBox="0 0 24 12" fill="none" aria-hidden="true"><rect x="1" y="2.5" width="18" height="7" rx="2" stroke="currentColor" stroke-opacity="0.5" stroke-width="1"/><rect x="2.5" y="4" width="13" height="4" rx="1" fill="currentColor" fill-opacity="0.95"/><path d="M20 5v2" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+          </header>
+          <div class="phone-header">
+            <button type="button" class="phone-back" tabindex="-1" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18 9 12l6-6"/></svg>
+            </button>
+            <div class="phone-header-main">
+              <div class="phone-avatar">🤖</div>
+              <div class="phone-header-info">
+                <h4>AI Agent</h4>
+                <p>online</p>
+              </div>
+            </div>
+            <div class="phone-header-actions">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </div>
+          </div>
+          <div class="phone-chat-stack">
+            <p class="phone-demo-hint" id="phoneDemoHint">The two-step demo plays automatically when this phone is on screen (or tap green <strong>Send</strong> to step through). Then type your own question and click <strong>Send</strong> — answers use whatsapp-agent-cli docs only. <strong>Enter</strong> is newline, not send.</p>
+            <div class="phone-body" id="chatArea" aria-live="polite"></div>
+          </div>
+          <div class="phone-composer">
+            <div class="phone-composer-inner">
+              <div class="phone-composer-field" id="composerPreview"></div>
+              <textarea id="composerInput" class="phone-composer-field phone-composer-input is-hidden" rows="2" autocomplete="off" aria-hidden="true" placeholder="Ask about install, commands, architecture…"></textarea>
+              <button type="button" class="phone-send-btn" id="phoneSendBtn" aria-label="Send message">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="phone-home-row"><div class="phone-home-indicator"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── WHAT YOU CAN DO ───────────────────────────── -->
+<section id="what">
+  <p class="section-label">// Capabilities</p>
+  <h2>What you can do<br>from WhatsApp</h2>
+  <p class="section-sub">Not a chat interface. A full coding runtime — delivered in your pocket.</p>
+  <div class="cards-3">
+    <div class="card">
+      <span class="card-icon">📱</span>
+      <h3>Code from your phone</h3>
+      <p>No SSH. No terminal app. No VPN. Open WhatsApp, type what you need, get the diff back in 30 seconds.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">⚡</span>
+      <h3>Full CLI power</h3>
+      <p>Not an API wrapper — it shells out to the actual <code style="font-family:var(--mono);font-size:12px;color:var(--green)">claude</code> or <code style="font-family:var(--mono);font-size:12px;color:var(--green)">codex</code> binary. File edits, shell commands, multi-step reasoning. Everything.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">🧠</span>
+      <h3>It remembers</h3>
+      <p>Per-chat working directories, model settings, 30 saved sessions, and daily memory rollover. Each chat is its own operator context.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── HOW IT WORKS ──────────────────────────────── -->
+<section id="how" style="padding-top:0">
+  <p class="section-label">// Architecture</p>
+  <h2>How it works</h2>
+  <p class="section-sub">Two processes, one systemd service. Nothing leaves your box.</p>
+
+  <div class="diagram-wrap">
+    <svg class="diagram-svg" viewBox="0 0 900 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Phone -->
+      <rect x="10" y="55" width="90" height="70" rx="10" fill="#0C2016" stroke="rgba(37,211,102,0.25)" stroke-width="1"/>
+      <text x="55" y="82" text-anchor="middle" font-family="'Syne',sans-serif" font-size="22" fill="white">📱</text>
+      <text x="55" y="107" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#4E7A5F">Your Phone</text>
+
+      <!-- Arrow 1 -->
+      <line x1="102" y1="90" x2="168" y2="90" stroke="#25D366" stroke-width="1.5" stroke-dasharray="6 3" class="flow-line"/>
+      <polygon points="168,85 178,90 168,95" fill="#25D366"/>
+
+      <!-- WhatsApp -->
+      <rect x="180" y="55" width="110" height="70" rx="10" fill="#0C2016" stroke="rgba(37,211,102,0.25)" stroke-width="1"/>
+      <text x="235" y="82" text-anchor="middle" font-family="'Syne',sans-serif" font-size="22" fill="white">💬</text>
+      <text x="235" y="100" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#4E7A5F">WhatsApp</text>
+      <text x="235" y="114" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="rgba(78,122,95,0.6)">Baileys</text>
+
+      <!-- Arrow 2 -->
+      <line x1="292" y1="90" x2="358" y2="90" stroke="#25D366" stroke-width="1.5" stroke-dasharray="6 3" class="flow-line"/>
+      <polygon points="358,85 368,90 358,95" fill="#25D366"/>
+
+      <!-- Bridge -->
+      <rect x="370" y="40" width="120" height="100" rx="10" fill="#0C2016" stroke="rgba(37,211,102,0.4)" stroke-width="1.5"/>
+      <text x="430" y="70" text-anchor="middle" font-family="'Syne',sans-serif" font-size="22" fill="white">🌉</text>
+      <text x="430" y="91" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#25D366" font-weight="500">Bridge</text>
+      <text x="430" y="107" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="rgba(78,122,95,0.6)">Node.js</text>
+      <text x="430" y="121" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8" fill="rgba(78,122,95,0.45)">long-poll · HTTP</text>
+
+      <!-- Arrow 3 -->
+      <line x1="492" y1="90" x2="558" y2="90" stroke="#25D366" stroke-width="1.5" stroke-dasharray="6 3" class="flow-line"/>
+      <polygon points="558,85 568,90 558,95" fill="#25D366"/>
+
+      <!-- Gateway -->
+      <rect x="570" y="40" width="120" height="100" rx="10" fill="#0C2016" stroke="rgba(37,211,102,0.4)" stroke-width="1.5"/>
+      <text x="630" y="70" text-anchor="middle" font-family="'Syne',sans-serif" font-size="22" fill="white">⚡</text>
+      <text x="630" y="91" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#25D366" font-weight="500">Gateway</text>
+      <text x="630" y="107" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="rgba(78,122,95,0.6)">Python async</text>
+      <text x="630" y="121" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8" fill="rgba(78,122,95,0.45)">state · sessions</text>
+
+      <!-- Arrow 4 -->
+      <line x1="692" y1="90" x2="758" y2="90" stroke="#25D366" stroke-width="1.5" stroke-dasharray="6 3" class="flow-line"/>
+      <polygon points="758,85 768,90 758,95" fill="#25D366"/>
+
+      <!-- Claude/Codex -->
+      <rect x="770" y="55" width="110" height="70" rx="10" fill="#0C2016" stroke="rgba(37,211,102,0.25)" stroke-width="1"/>
+      <text x="825" y="82" text-anchor="middle" font-family="'Syne',sans-serif" font-size="22" fill="white">🤖</text>
+      <text x="825" y="100" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#4E7A5F">Claude / Codex</text>
+      <text x="825" y="114" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="rgba(78,122,95,0.6)">full CLI</text>
+
+      <!-- Return arrow (bottom) -->
+      <path d="M825 127 L825 160 L55 160 L55 127" stroke="rgba(37,211,102,0.3)" stroke-width="1.5" stroke-dasharray="6 3" fill="none" class="flow-line-r"/>
+      <polygon points="50,127 55,117 60,127" fill="rgba(37,211,102,0.4)"/>
+      <text x="440" y="175" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="rgba(78,122,95,0.45)">reply back</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ─── FEATURE GRID ───────────────────────────────── -->
+<section id="features" style="padding-top:0">
+  <p class="section-label">// Everything included</p>
+  <h2>Batteries included</h2>
+  <p class="section-sub">No configuration gymnastics. Install once, text forever.</p>
+  <div class="features-grid">
+    <div class="feat-item">
+      <div class="feat-dot"></div>
+      <div>
+        <h4>Voice notes → code</h4>
+        <p>Whisper transcription turns WhatsApp voice messages into agent prompts. Hands-free coding.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-dot"></div>
+      <div>
+        <h4>30 saved sessions per chat</h4>
+        <p>Name, save, and restore sessions. <code style="font-family:var(--mono);font-size:11px;color:var(--green)">/resume auth-refactor</code> brings back exactly where you left off.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-dot"></div>
+      <div>
+        <h4>Bot mode or self-chat mode</h4>
+        <p>Dedicate a second WhatsApp number as your agent, or text your own number to yourself.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-dot"></div>
+      <div>
+        <h4>Daily memory rollover</h4>
+        <p>Each day the agent compacts context into a carry-forward summary. Long projects, zero context loss.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-dot"></div>
+      <div>
+        <h4>In-chat upgrades</h4>
+        <p>Agent pings you when a new version drops on PyPI. Reply <code style="font-family:var(--mono);font-size:11px;color:var(--green)">/yes</code> — it upgrades itself and restarts.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-dot"></div>
+      <div>
+        <h4>100% self-hosted</h4>
+        <p>All data stays on your server. Credentials, sessions, memory — none of it touches a third party.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── COMMANDS ──────────────────────────────────── -->
+<section id="commands" style="padding-top:0">
+  <p class="section-label">// Chat interface</p>
+  <h2>Commands</h2>
+  <p class="section-sub">Send these as WhatsApp messages from any allowed number.</p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="t-dot r"></div>
+      <div class="t-dot y"></div>
+      <div class="t-dot g"></div>
+      <span class="terminal-title">whatsapp-agent — chat commands</span>
+    </div>
+    <table class="cmd-table">
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/new</td>
+        <td class="cmd-cell cmd-desc">Archive current session and start fresh</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/compact</td>
+        <td class="cmd-cell cmd-desc">Summarize context and continue — saves your context window</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/root /path/to/repo</td>
+        <td class="cmd-cell cmd-desc">Switch the working directory for this chat</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/model &lt;name&gt;</td>
+        <td class="cmd-cell cmd-desc">Change the model on the fly without clearing the session</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/resume</td>
+        <td class="cmd-cell cmd-desc">List all saved sessions and restore one by name or id</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/search-session &lt;q&gt;</td>
+        <td class="cmd-cell cmd-desc">Find and restore the most relevant saved session</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/memory</td>
+        <td class="cmd-cell cmd-desc">Show this chat's long-term memory files and session ids</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/status</td>
+        <td class="cmd-cell cmd-desc">Backend, model, root, active thread, session count</td>
+      </tr>
+      <tr class="cmd-row">
+        <td class="cmd-cell cmd-prompt">&gt;</td>
+        <td class="cmd-cell cmd-name">/help</td>
+        <td class="cmd-cell cmd-desc">Print all commands in-chat</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ─── INSTALL ───────────────────────────────────── -->
+<section id="install" style="padding-top:0">
+  <p class="section-label">// Get started</p>
+  <h2>Up in 4 steps</h2>
+  <p class="section-sub">Requires Linux + Python 3.10+ + Node 18+ + <code style="font-family:var(--mono);font-size:14px;color:var(--green)">claude</code> or <code style="font-family:var(--mono);font-size:14px;color:var(--green)">codex</code> already authenticated on your server.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>Run the bootstrap</h3>
+        <p>One command installs everything — uv, the CLI, and all runtime deps. Works on Debian/Ubuntu.</p>
+        <div class="code-block"><span class="cmd-green">$</span> curl -fsSL https://raw.githubusercontent.com/kalki-kgp/whatsapp-agent-cli/main/scripts/bootstrap.sh | bash</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>Follow the interactive setup</h3>
+        <p>Auto-detects Claude and Codex on your PATH. Pick bot vs self-chat mode, enter your allowed number, optionally enable Whisper for voice notes.</p>
+        <div class="code-block"><span class="cmd-green">$</span> whatsapp-agent install
+
+<span class="comment"># Arrow keys to navigate, Enter to confirm</span>
+<span class="comment"># Advanced options behind an opt-in toggle</span></div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-line"></div>
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>Pair your WhatsApp account</h3>
+        <p>A QR code prints in the terminal. Open WhatsApp → Linked Devices → scan. Credentials are saved and survive restarts.</p>
+        <div class="code-block"><span class="cmd-green">$</span> whatsapp-agent pair
+
+<span class="comment"># Scan the QR from WhatsApp → Linked Devices</span></div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>Start texting</h3>
+        <p>The service starts automatically. Check status anytime.</p>
+        <div class="code-block"><span class="cmd-green">$</span> whatsapp-agent service status
+<span class="cmd-green">$</span> whatsapp-agent service logs    <span class="comment"># live tail</span>
+<span class="cmd-green">$</span> whatsapp-agent doctor          <span class="comment"># diagnose any issues</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ────────────────────────────────────── -->
+<footer>
+  <div class="footer-left">
+    <strong style="color:var(--green);font-family:var(--mono)">whatsapp-agent-cli</strong> &nbsp;·&nbsp;
+    <a href="https://github.com/kalki-kgp/whatsapp-agent-cli" target="_blank">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://pypi.org/project/whatsapp-agent-cli/" target="_blank">PyPI</a> &nbsp;·&nbsp;
+    MIT License
+  </div>
+  <div class="footer-links">
+    <a href="#hero">Top</a>
+    <a href="https://github.com/kalki-kgp/whatsapp-agent-cli/issues" target="_blank">Issues</a>
+    <a href="https://github.com/kalki-kgp/whatsapp-agent-cli/blob/main/README.md" target="_blank">README</a>
+  </div>
+  <div class="built-with">Built with Claude Code</div>
+</footer>
+
+<script>
+  // ── Copy install command ─────────────────────────
+  function copyInstall() {
+    const cmd = 'curl -fsSL https://raw.githubusercontent.com/kalki-kgp/whatsapp-agent-cli/main/scripts/bootstrap.sh | bash';
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = 'Copied ✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2500);
+    });
+  }
+
+  // ── Interactive WhatsApp demo + live docs chat ───
+  const chatArea = document.getElementById('chatArea');
+  const phoneSendBtn = document.getElementById('phoneSendBtn');
+  const composerPreview = document.getElementById('composerPreview');
+  const composerInput = document.getElementById('composerInput');
+  const phoneDemoHint = document.getElementById('phoneDemoHint');
+
+  const CHAT_API = '/api/chat';
+
+  if (!chatArea || !phoneSendBtn || !composerPreview || !composerInput || !phoneDemoHint) {
+    /* Phone demo not present */
+  } else {
+
+  const demoTurns = [
+    {
+      user: 'Brainstorm 12 newsletter names — mix playful + professional',
+      agent: 'Ranked shortlist ✓ · Top 3 flagged · say “more bold” and I’ll regenerate',
+      typingMs: 1400,
+    },
+    {
+      user: 'Turn pick #2 into a launch tweet thread with hooks',
+      agent: 'Thread drafted ✓ · 7 tweets · pacing tuned for timeline skimmers',
+      typingMs: 1200,
+    },
+  ];
+
+  let turnIndex = 0;
+  let busy = false;
+  let liveMode = false;
+  const liveHistory = [];
+
+  function scrollChatToEnd() {
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }
+
+  function makeUserBubble(text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-msg user';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble user-bubble';
+    const msg = document.createElement('span');
+    msg.style.whiteSpace = 'pre-wrap';
+    msg.style.wordBreak = 'break-word';
+    msg.textContent = text;
+    const tick = document.createElement('span');
+    tick.className = 'bubble-tick';
+    tick.textContent = '✓✓';
+    bubble.appendChild(msg);
+    bubble.appendChild(tick);
+    wrap.appendChild(bubble);
+    return wrap;
+  }
+
+  function makeAgentBubble(text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-msg agent';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble agent-bubble';
+    bubble.style.whiteSpace = 'pre-wrap';
+    bubble.style.wordBreak = 'break-word';
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    return wrap;
+  }
+
+  function makeTyping() {
+    const w = document.createElement('div');
+    w.className = 'chat-msg agent';
+    const t = document.createElement('div');
+    t.className = 'typing-indicator visible';
+    t.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+    w.appendChild(t);
+    return w;
+  }
+
+  function enterLiveMode() {
+    liveMode = true;
+    composerPreview.classList.add('is-hidden');
+    composerInput.classList.remove('is-hidden');
+    composerInput.removeAttribute('aria-hidden');
+    composerInput.value = '';
+    phoneDemoHint.innerHTML =
+      'Your turn: type in the box below, then click the green <strong>Send</strong> button to ask about whatsapp-agent-cli. <strong>Enter</strong> adds a new line — only the Send button submits.';
+    composerInput.focus();
+  }
+
+  function updateComposer() {
+    composerPreview.classList.remove('is-placeholder');
+    if (liveMode) return;
+    if (turnIndex < demoTurns.length) {
+      composerPreview.textContent = demoTurns[turnIndex].user;
+    } else {
+      composerPreview.textContent = '';
+    }
+  }
+
+  /** @returns {Promise<void>} */
+  function runDemoTurn() {
+    if (turnIndex >= demoTurns.length) return Promise.resolve();
+    const turn = demoTurns[turnIndex];
+    busy = true;
+    phoneSendBtn.disabled = true;
+
+    chatArea.appendChild(makeUserBubble(turn.user));
+    composerPreview.textContent = '';
+    scrollChatToEnd();
+
+    const typingEl = makeTyping();
+    chatArea.appendChild(typingEl);
+    scrollChatToEnd();
+
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        typingEl.remove();
+        chatArea.appendChild(makeAgentBubble(turn.agent));
+        scrollChatToEnd();
+
+        turnIndex += 1;
+        busy = false;
+
+        if (turnIndex >= demoTurns.length) {
+          phoneSendBtn.disabled = false;
+          enterLiveMode();
+        } else {
+          phoneSendBtn.disabled = false;
+          updateComposer();
+        }
+        resolve();
+      }, turn.typingMs);
+    });
+  }
+
+  async function runLiveTurn() {
+    const text = composerInput.value.trim();
+    if (!text) return;
+
+    busy = true;
+    phoneSendBtn.disabled = true;
+    composerInput.value = '';
+
+    chatArea.appendChild(makeUserBubble(text));
+    scrollChatToEnd();
+
+    liveHistory.push({ role: 'user', content: text });
+
+    const typingEl = makeTyping();
+    chatArea.appendChild(typingEl);
+    scrollChatToEnd();
+
+    try {
+      const res = await fetch(CHAT_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ messages: liveHistory }),
+      });
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = {};
+      }
+      typingEl.remove();
+
+      if (!res.ok) {
+        liveHistory.pop();
+        const err = typeof data.error === 'string' ? data.error : `Request failed (${res.status})`;
+        chatArea.appendChild(makeAgentBubble(err));
+      } else if (typeof data.reply !== 'string' || !data.reply.trim()) {
+        liveHistory.pop();
+        chatArea.appendChild(makeAgentBubble('Empty reply from chat API.'));
+      } else {
+        const reply = data.reply.trim();
+        liveHistory.push({ role: 'assistant', content: reply });
+        chatArea.appendChild(makeAgentBubble(reply));
+      }
+    } catch (err) {
+      typingEl.remove();
+      liveHistory.pop();
+      const msg = err && err.message ? err.message : String(err);
+      chatArea.appendChild(
+        makeAgentBubble(
+          'Could not reach /api/chat — run npm start in whatsapp-agent-docs (same folder as .env). ' + msg,
+        ),
+      );
+    }
+
+    scrollChatToEnd();
+    busy = false;
+    phoneSendBtn.disabled = false;
+    composerInput.focus();
+  }
+
+  function runTurn() {
+    if (busy) return;
+    if (liveMode) {
+      void runLiveTurn();
+      return;
+    }
+    void runDemoTurn();
+  }
+
+  phoneSendBtn.addEventListener('click', runTurn);
+  updateComposer();
+
+  /** Run the two scripted turns without taps; paused if user interacts first */
+  async function autoplayDemo() {
+    if (liveMode || busy || turnIndex !== 0) return;
+    phoneSendBtn.disabled = true;
+    try {
+      await runDemoTurn();
+      if (!liveMode && turnIndex < demoTurns.length) {
+        await new Promise((r) => setTimeout(r, 320));
+        await runDemoTurn();
+      }
+    } catch (_) {
+      /* noop */
+    } finally {
+      if (!busy) phoneSendBtn.disabled = liveMode ? false : turnIndex < demoTurns.length;
+    }
+  }
+
+  const reduceMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const heroPhone = document.querySelector('.hero-right .phone-wrap');
+
+  let autoStarted = false;
+  function kickAutoplay() {
+    if (reduceMotion || autoStarted) return;
+    autoStarted = true;
+    autoplayDemo();
+  }
+
+  if (heroPhone && 'IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            io.disconnect();
+            kickAutoplay();
+            break;
+          }
+        }
+      },
+      { root: null, rootMargin: '0px 0px -8% 0px', threshold: 0.2 },
+    );
+    io.observe(heroPhone);
+  } else if (heroPhone) {
+    requestAnimationFrame(() => kickAutoplay());
+  }
+
+  setTimeout(() => {
+    if (!autoStarted && turnIndex === 0 && !liveMode && !busy && !reduceMotion) {
+      kickAutoplay();
+    }
+  }, 2600);
+
+  /** User clicked Send during staged preview — cancel scheduled autoplay */
+  phoneSendBtn.addEventListener(
+    'click',
+    () => {
+      if (turnIndex === 0 && !liveMode) autoStarted = true;
+    },
+    { capture: true },
+  );
+
+  }
+
+  // ── Scroll-aware nav ─────────────────────────────
+  const nav = document.querySelector('nav');
+  window.addEventListener('scroll', () => {
+    nav.style.borderBottomColor = window.scrollY > 10
+      ? 'rgba(37,211,102,0.18)'
+      : 'rgba(37,211,102,0.1)';
+  }, { passive: true });
+</script>
+</body>
+</html>
