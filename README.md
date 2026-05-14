@@ -97,7 +97,9 @@ Replace `917385166726` with your WhatsApp number in international format.
 
 ## How it works
 
-Two processes run together under a single systemd user service:
+The shape depends on the backend.
+
+**Codex (default):**
 
 ```
 You (WhatsApp)
@@ -106,13 +108,15 @@ You (WhatsApp)
 bridge/bridge.js   ← Node.js + Baileys, handles WhatsApp WebSocket
      │  long-poll
      ▼
-server/gateway.py  ← Python async, manages per-chat sessions and state
+server/gateway.py  ← Python async, per-chat sessions and state
      │  subprocess
      ▼
-codex / claude     ← the actual CLI, running on your server
+codex              ← spawned per message
      │
      └──── reply ──▶ You (WhatsApp)
 ```
+
+**Claude:** runs through the [official channels mechanism](https://code.claude.com/docs/en/channels) instead of `claude -p`, so usage hits the interactive subscription pool rather than the new Agent SDK credit pool. The gateway becomes a thin supervisor that registers the local marketplace shipped under `plugins/`, installs the `whatsapp` plugin from it, and keeps one long-lived `claude --dangerously-load-development-channels plugin:whatsapp@whatsapp-agent-cli …` process alive (under a PTY so Claude runs interactive). The WhatsApp connection and per-chat routing live inside the channel plugin in `plugins/whatsapp/` (a Bun MCP server). Requires Claude Code v2.1.80+, Bun, and claude.ai or Console authentication.
 
 Everything runs in `~/.agent-whatsapp/`. The bridge stores WhatsApp credentials. The gateway stores per-chat state in `state.json` and memory files under `memory/`. Nothing leaves your box.
 
@@ -151,6 +155,10 @@ Settings live in `~/.agent-whatsapp/.env`. Re-run `whatsapp-agent install --reco
 | `AGENT_WHISPER_MODEL` | Whisper model size (`base`, `small`, `medium`) |
 | `AGENT_UPGRADE_CHECK` | Set `0` to disable PyPI upgrade notices |
 | `CW_LOG_LEVEL` | Python log level (default `INFO`) |
+| `CLAUDE_BIN` | Claude backend only — path to the claude binary (default: `claude` on PATH) |
+| `CLAUDE_PLUGIN_DIR` | Claude backend only — absolute path to the WhatsApp channel plugin (default: `~/.agent-whatsapp/plugins/whatsapp`) |
+| `CLAUDE_CHANNEL_SPEC` | Claude backend only — channel spec (default: `plugin:whatsapp@whatsapp-agent-cli`) |
+| `CLAUDE_CHANNEL_EXTRA_ARGS` | Claude backend only — extra args appended to the `claude` command (shell-split) |
 
 ---
 
