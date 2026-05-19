@@ -72,8 +72,11 @@ class ChannelSupervisor:
         ]
         if self.memory_dir and self.memory_dir != self.workspace_root:
             args.extend(["--add-dir", str(self.memory_dir)])
-        if self.model:
-            args.extend(["--model", self.model])
+        # WhatsApp chat needs sub-10s replies; high-effort Opus turns take
+        # 15-60s and feel broken to a phone user. Default the channel session
+        # to Sonnet unless the operator explicitly overrode AGENT_MODEL.
+        effective_model = self.model or "claude-sonnet-4-6"
+        args.extend(["--model", effective_model])
         args.extend(self.extra_args)
         return args
 
@@ -86,6 +89,12 @@ class ChannelSupervisor:
 
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         await self._ensure_plugin_registered()
+        # Plugin install/update commands transiently spawn bun via .mcp.json
+        # to validate the plugin, then exit — leaving an orphan bun (parent=1)
+        # that grabs the singleton lock for the WhatsApp socket. The bun
+        # spawned by our long-running claude session then goes passive and
+        # never sees inbound messages. Clean up before launch.
+        await self._kill_stale_plugin_processes()
 
         delay = self.restart_min_delay
         while not self.stop_event.is_set():
@@ -150,6 +159,70 @@ class ChannelSupervisor:
                 pass
             delay = min(delay * 2, self.restart_max_delay)
 
+    async def _kill_stale_plugin_processes(self) -> None:
+        """Best-effort cleanup of orphan bun processes for this plugin.
+
+        `claude plugin install` / `plugin update` transiently spawn the
+        plugin's bun via .mcp.json to verify the manifest. When that wrapper
+        exits, the bun gets reparented to pid 1 and keeps holding the
+        singleton lock + WhatsApp socket without a working MCP stdio peer.
+        Inbound notifications then go to a dead pipe and Claude appears mute.
+        """
+        plugin_path = str(self.plugin_dir)
+        own_pid = os.getpid()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "pgrep", "-fa", plugin_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            out, _ = await proc.communicate()
+        except FileNotFoundError:
+            LOG.debug("pgrep not available; skipping stale-plugin cleanup")
+            return
+
+        killed: list[int] = []
+        for line in out.decode(errors="replace").splitlines():
+            parts = line.strip().split(None, 1)
+            if not parts:
+                continue
+            try:
+                pid = int(parts[0])
+            except ValueError:
+                continue
+            if pid == own_pid:
+                continue
+            cmdline = parts[1] if len(parts) > 1 else ""
+            # Only target bun processes (not other claude/python loops that
+            # happen to mention the plugin path).
+            if "bun" not in cmdline and "/bun" not in cmdline:
+                continue
+            try:
+                os.kill(pid, signal.SIGTERM)
+                killed.append(pid)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                LOG.warning("cannot signal stale plugin pid=%d (permission denied)", pid)
+
+        if killed:
+            LOG.info("killed stale plugin bun pids=%s", killed)
+            # Brief settle so any lockfile from the killed bun gets released
+            # before the new claude session spawns its own bun.
+            await asyncio.sleep(0.5)
+        # Also nuke a leftover lock file in case the process is gone but
+        # the file wasn't cleaned up.
+        for lock in (
+            Path.home() / ".claude" / "channels" / "whatsapp" / "whatsapp.lock",
+        ):
+            try:
+                lock.unlink()
+                LOG.info("removed stale lock file %s", lock)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                LOG.warning("could not remove %s: %s", lock, exc)
+
     async def _ensure_plugin_registered(self) -> None:
         """Idempotently add the local marketplace and install the plugin.
 
@@ -183,8 +256,16 @@ class ChannelSupervisor:
             "marketplace add",
         )
         await self._run_claude_command(
+            ["plugin", "marketplace", "update", marketplace_name],
+            "marketplace update",
+        )
+        await self._run_claude_command(
             ["plugin", "install", f"{plugin_name}@{marketplace_name}"],
             "plugin install",
+        )
+        await self._run_claude_command(
+            ["plugin", "update", f"{plugin_name}@{marketplace_name}"],
+            "plugin update",
         )
 
     async def _run_claude_command(self, args: Sequence[str], label: str) -> None:
