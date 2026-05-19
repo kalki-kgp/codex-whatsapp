@@ -148,7 +148,7 @@ class Config:
             _env_first("CLAUDE_PLUGIN_DIR", default=str(self.home / "plugins" / "whatsapp"))
         ).expanduser()
         self.claude_channel_spec = _env_first(
-            "CLAUDE_CHANNEL_SPEC", default="plugin:whatsapp@local-dev"
+            "CLAUDE_CHANNEL_SPEC", default="plugin:whatsapp@whatsapp-agent-cli"
         )
         self.claude_channel_extra_args = shlex.split(os.getenv("CLAUDE_CHANNEL_EXTRA_ARGS", ""))
         self.processed_limit = int(os.getenv("CW_PROCESSED_LIMIT", "2000"))
@@ -645,6 +645,11 @@ class WhatsAppAgentGateway:
             self.upgrade_task = asyncio.create_task(self.upgrade_notice_loop())
         if self.config.memory_enabled:
             self.memory_task = asyncio.create_task(self.memory_rollover_loop())
+        if self.config.transcribe_audio:
+            # Pre-load faster-whisper in a background thread so the first
+            # voice note doesn't pay the model-init cost. The model object
+            # is cached on self and reused by transcribe_audio_file.
+            asyncio.create_task(asyncio.to_thread(self._warm_whisper_sync))
         try:
             await self.poll_loop()
         finally:
@@ -864,6 +869,39 @@ class WhatsAppAgentGateway:
     async def transcribe_audio_file(self, path: Path) -> str:
         async with self.whisper_lock:
             return await asyncio.to_thread(self._transcribe_audio_file_sync, path)
+
+    def _warm_whisper_sync(self) -> None:
+        """Initialise the faster-whisper model before the first voice note.
+
+        Runs in a worker thread. Any exception is logged and swallowed so the
+        gateway keeps polling; the first real transcription will surface a
+        useful error if the model never loaded.
+        """
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            LOG.info(
+                "faster-whisper not installed; skipping warm. Voice notes will "
+                "report transcription as unavailable until the package is added."
+            )
+            return
+        if self.whisper_model is not None:
+            return
+        LOG.info(
+            "Warming faster-whisper model=%s device=%s compute_type=%s",
+            self.config.whisper_model,
+            self.config.whisper_device,
+            self.config.whisper_compute_type,
+        )
+        try:
+            self.whisper_model = WhisperModel(
+                self.config.whisper_model,
+                device=self.config.whisper_device,
+                compute_type=self.config.whisper_compute_type,
+            )
+            LOG.info("faster-whisper warm: ready")
+        except Exception:
+            LOG.exception("faster-whisper warm failed")
 
     def _transcribe_audio_file_sync(self, path: Path) -> str:
         try:
